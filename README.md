@@ -13,8 +13,8 @@ flowchart TD
 ```
 
 ## Documentación
-[Despliegue de la Infraestructura](./infra_ad.md)
-[Configuración de Cliente](./client_setup.md)
+- [Despliegue de la Infraestructura](./infra_ad.md)
+- [Configuración de Cliente](./client_setup.md)
 > **Importante**: todos debeis leeros la configuracion del cliente y saber como trabajar con el neo.
 
 ## Servicios
