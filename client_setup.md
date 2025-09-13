@@ -1,4 +1,4 @@
-# Cliente AD 101, de script kidde a master
+# Cliente AD 101, de script kiddie a master
 
 ## VPN
 Para poder conectarte al servidor hay que utilizar wireguard, lo primero es instalarlo
