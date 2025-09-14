@@ -24,3 +24,4 @@ flowchart TD
 - **Haduhana (Shovel)**: `http://10.0.0.1:8000/`
 - **Farm**: `http://10.0.0.1:5137/`
 - **Neo Metrics**: `http://10.0.0.1:8428/`
+- **Neo Exploits**: `http://10.0.0.1:5005/`
