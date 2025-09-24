@@ -1,0 +1,2 @@
+- [ ] Soporte ipv6
+- [ ] Neos automatizados en Digital Ocean

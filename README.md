@@ -21,7 +21,7 @@ flowchart TD
 - **IP servidor en la VPN**: `10.0.0.1`
 - **IP Servidor**: `10.0.0.1`
 - **Clientes**: `10.0.1.X/32`
-- **Haduhana (Shovel)**: `http://10.0.0.1:8000/`
+- **Haduhana**: `http://10.0.0.1:8000/`
 - **Farm**: `http://10.0.0.1:5137/`
-- **Neo Metrics**: `http://10.0.0.1:8428/`
+- **Grafana Dashboard**: `http://10.0.0.1:3000/`
 - **Neo Exploits**: `http://10.0.0.1:5005/`
