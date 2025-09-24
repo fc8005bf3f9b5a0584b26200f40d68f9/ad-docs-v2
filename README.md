@@ -14,8 +14,10 @@ flowchart TD
 
 ## Documentación
 - [Despliegue de la Infraestructura](./infra_ad.md)
+- [Configuración de la infra por CTF](ctf_setup.md)
 - [Configuración de Cliente](./client_setup.md)
-> **Importante**: todos debeis leeros la configuracion del cliente y saber como trabajar con el neo.
+- [Desarrollo de exploits](exploit_guide.md)
+> **Importante**: todos debeis leeros la configuracion del cliente, saber como trabajar con el neo, desarrollar exploits...
 
 ## Servicios
 - **IP servidor en la VPN**: `10.0.0.1`
