@@ -11,7 +11,6 @@ flowchart LR
     n1@{ shape: rounded}
     n4@{ shape: rounded}
     n3@{ shape: rounded}
-    n7@{ shape: rect}
 ```
 
 ## Documentación
