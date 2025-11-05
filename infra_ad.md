@@ -1,72 +1,128 @@
 # Infra 101, desde cero hasta hero
 
-## Herramientas que vamos a utilizar
-
-- Docker (Docker compose se instala separado)
-- UFW (contabo expone todo el trafico, firewall aisla)
-- Wireguard VPN (mas facil que OpenVPN)
-
-## Emepzar
+## Setup servidor
+La guía esta hecha para un servidor con Debian 13
 
 ### Instalar herramientas
 
-``apt install ufw docker.io wireguard``
+```
+apt update && apt upgrade -y
+apt install ufw wireguard git -y
+```
 
-Instalar [`docker-compose-plugin`](https://docs.docker.com/compose/install/linux/#install-using-the-repository). Es necesario añadir el repositorio y luego
-
-``apt install docker-compose-plugin``
-
-### Configurar firewall
-
-``ufw allow 22/tcp``
-``ufw allow 25412/udp``
-``ufw enable``
-
-Se configura y se activa el firewall.
+Instalar [`docker`](https://docs.docker.com/engine/install/debian/#install-using-the-repository), siguiendo la documentación oficial.
 
 ### Configurar VPN Servidor
 
-Primer paso es generar las claves de la VPN.
+Primer paso es generar las claves del servidor.
 
 ```
 cd /etc/wireguard
-wg genkey > privatekey 
-wg pubkey < privatekey > publickey
+wg genkey | tee privatekey | wg pubkey > publickey
 ```
 
 A continuación es necesario copiar la clave privada. Luego crear un archivo `wg0.conf` en la misma carpeta de wireguard.
 
 ```
 [Interface]
-PrivateKey = SERVER_PRIVATE (la que se ha generado anteriormente)
+PrivateKey = SERVER_PRIVATE_KEY
 Address = 10.0.0.1/24
 ListenPort = 25412
 
-## Aqui abajo se ponen las claves publicas de cada cliente
-[Peer]
-AllowedIPs = 10.0.1.2/32
-PublicKey = CLIENT PUBLIC KEY
 ```
 
 ### Configurar VPN Cliente
+Primero agregamos los clientes a la configuración:
+`./add_clientes.sh CLIENTS_NUM`
 
-A continuación cada cliente deberá de hacer su propio par de claves privadas y publicas.
+```bash
+#!/bin/bash
 
+NUM_CLIENTES=$1
+IP_INICIAL=2
+
+WG_DIR="/etc/wireguard"
+CONFIG_FILE="$WG_DIR/wg0.conf"
+KEYS_DIR="$WG_DIR/clients_keys"
+IP_BASE="10.0.1."
+
+if [[ -z "$1" ]]; then
+    echo "Error: No se especificó el número de clientes."
+    echo "Uso: $0 <numero_de_clientes_a_generar>"
+    exit 1
+fi
+
+mkdir -p "$KEYS_DIR"
+chmod 700 "$KEYS_DIR"
+echo "Directorio de claves asegurado en $WG_DIR/$KEYS_DIR"
+
+declare -a client_privkeys_output
+
+echo -e "\n# Clientes" >> "$CONFIG_FILE"
+
+CURRENT_OCTET=$IP_INICIAL-1
+
+echo "Generando $NUM_CLIENTES clientes nuevos..."
+
+for (( i=1; i<=$NUM_CLIENTES; i++ )); do
+    
+    # Incrementamos el octeto para el nuevo cliente
+    CURRENT_OCTET=$((CURRENT_OCTET + 1))
+    
+    CLIENT_IP="${IP_BASE}${CURRENT_OCTET}/32"
+    
+    PRIV_KEY_FILE="${KEYS_DIR}/${CURRENT_OCTET}_privatekey"
+    PUB_KEY_FILE="${KEYS_DIR}/${CURRENT_OCTET}_publickey"
+    
+    echo "-------------------------------------"
+    echo "Generando Cliente (IP: $CLIENT_IP)"
+
+    CLIENT_PRIV_KEY=$(wg genkey)
+    CLIENT_PUB_KEY=$(echo "$CLIENT_PRIV_KEY" | wg pubkey)
+
+    echo "$CLIENT_PRIV_KEY" > "$PRIV_KEY_FILE"
+    echo "$CLIENT_PUB_KEY" > "$PUB_KEY_FILE"
+    
+    chmod 600 "$PRIV_KEY_FILE"
+
+    echo "Claves generadas y guardadas en $KEYS_DIR/"
+
+    cat << EOF >> "$CONFIG_FILE"
+
+[Peer]
+AllowedIPs = $CLIENT_IP
+PublicKey = $CLIENT_PUB_KEY
+EOF
+
+    echo "Cliente añadido a $CONFIG_FILE"
+    client_privkeys_output+=("$CLIENT_IP - $CLIENT_PRIV_KEY")
+
+done
+
+# --- Salida Final ---
+echo "======================================================"
+echo " Proceso completado."
+echo " Claves privadas de los clientes generados:"
+
+for key_info in "${client_privkeys_output[@]}"; do
+    echo "$key_info"
+done
+
+echo "======================================================"
+
+exit 0
 ```
-wg genkey > privatekey 
-wg pubkey < privatekey > publickey
-```
 
-Luego se tendrá que configurar de la siguiente manera el cliente.
+Luego se tendrá que configurar cada cliente.
 
 ```
 [Interface]
-PrivateKey = CLIENT_PRIVATE (la que se ha generado anteriormente)
-Address = 10.0.1.2/32
+PrivateKey = CLIENT_PRIVATE
+Address = 10.0.1.X/32
 
 [Peer]
 PublicKey = SERVER_PUBLIC
-Endpoint = SERVER_IP:LISTENPORT
+Endpoint = SERVER_IP:25412
 AllowedIPs = 10.0.0.0/24
 ```
 
@@ -117,15 +173,26 @@ peer: JqPWkpWaJ2b3+yTY22DZ3yf914Q09WgfNL16FzZMOzo=
   allowed ips: 10.0.1.2/32
 ```
 
+### Configurar firewall
+```
+ufw allow 22/tcp
+ufw allow 25412/tcp
+ufw allow in on wg0
+ufw allow out on wg0
+ufw enable
+```
+
+Se configura y se activa el firewall.
+
 ### Quitar SSH expuesto
 
-Modificar el fichero ``/etc/systemd/system/sshd.service``. En la linea `After`, añadir wg-quick@wg0.service
+Modificar el fichero ``/etc/systemd/system/sshd.service``. En la linea `After`, añadir `wg-quick@wg0.service`
 
 ```
 [Unit]
 Description=OpenBSD Secure Shell server
 Documentation=man:sshd(8) man:sshd_config(5)
-After=network.target nss-user-lookup.target wg-quick@wg0.service auditd.service
+After=network.target nss-user-lookup.target auditd.service wg-quick@wg0.service
 ConditionPathExists=!/etc/ssh/sshd_not_to_be_run
 
 [Service]
@@ -146,113 +213,50 @@ WantedBy=multi-user.target
 Alias=sshd.service
 ```
 
-Finalmente, borrar SSH del firewall
+Reiniciar el servidor
+
+## Instalación herramientas AD
+### Instalación Tulip (Haduhana)
 
 ```
-# Permitir conexiones de wg0
-sudo ufw allow in on wg0 to any port 22
-
-# Borrar regla antigua de ALLOW IN Anywhere
-ufw status numbered
-ufw delete NUMERO_LINEA
+git clone https://github.com/OpenAttackDefenseTools/tulip
+cd tulip
 ```
 
-Siendo el número de linea el indicador producido por el comando `ufw status numbered`
-
-Resultado final 
-
+Editamos el `docker-compose-suricata.yml` para cambiar el endpoint del frontend:
 ```
-root@spain-ecsc:/home/nacabaro# sudo ufw status numbered
-Status: active
-
-     To                         Action      From
-     --                         ------      ----
-[ 1] 25412/udp                  ALLOW IN    Anywhere                  
-[ 2] 22 on wg0                  ALLOW IN    Anywhere                  
-[ 3] 25412/udp (v6)             ALLOW IN    Anywhere (v6)             
-[ 4] 22 (v6) on wg0             ALLOW IN    Anywhere (v6)
-```
- 
-Reiniciar
-
-### Configurar Shovel (Haduhana)
-
-```
-sudo apt install git
-git clone https://github.com/FCSC-FR/shovel
-cd shovel
+frontend:
+  build:
+    context: frontend
+    dockerfile: Dockerfile-frontend
+  image: tulip-frontend:latest
+  restart: unless-stopped
+  ports:
+    - "10.0.0.1:3000:3000"
 ```
 
-Es necesario configurar .env, sino no fufa.
-
-A continuación, modificar `docker-compose.yml`. Modificar linea 44:
-
-```yml  
-    ...
-    ports:
-      - 127.0.0.1:8000:8000 
+Copiamos el env y lo configuramos `cp .env.example .env`:
+```
+TRAFFIC_DIR_HOST="./traffic"
+FLAGID_SCRAPE=1
+FLAGID_SCAN=1
+SURICATA_DIR_HOST="./suricata"
 ```
 
-Por lo siguiente
-
-```yml  
-    ...
-    ports:
-      - 10.0.0.1:8000:8000 # O la IP del servidor de wireguard.
+Creamos los directorios necesarios:
+```
+. .env
+mkdir -p {${SURICATA_DIR_HOST}/{etc,lib/rules,log},${TRAFFIC_DIR_HOST}}
 ```
 
-Y se levanta el docker.
+Copy [rules](suricata.rules) to `./suricata/lib/rules/suricata.rules`
 
+### Instalación ataka
 ```
-docker compose up -d 
-```
-
-Una vez levantado, añadir a firewall
-
-```
-sudo ufw allow in on wg0 to any port 8000
+git clone https://github.com/OpenAttackDefenseTools/ataka
+cd ataka
 ```
 
-### Configurar S4DFarm
-```
-git clone https://github.com/C4T-BuT-S4D/S4DFarm
-```
-Antes de iniciar neo hay que configurar la Farm. Para ello mirar el README.md de S4DFarm.
+Editamos el `docker-compose.yml` para cambiar el endpoint de `postgres`, `adminer` y `api` (`10.0.0.1:PORT:PORT`)
 
-```
-nano ./server/app/config.py
-```
-
-Modificar `server/docker/front/Dockerfile`. Añadir esto
-
-```
-FROM front-base AS front-build
-RUN corepack use pnpm@8.x                    # Añadir esta linea en esta ubicacion
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-RUN pnpm run build
-```
-
-Modificar las contraseñas es recomendado. Añadir a todos los puertos del `compose.yml` del S4DFarm el valor `10.0.0.1`, como se ha visto antes en el Shovel.
-
-Finalmente, guardar y salir.
-
-```
-docker compose up -d
-```
-
-Una vez levantado, añadir a firewall
-
-```
-sudo ufw allow in on wg0 to any port 5137 ?????
-```
-
-### Configurar neo
-
-Descargar la ultima [release](https://github.com/pomo-mondreganto/neo/releases) del servidor
-
-Modificar `configs/server/config.yml`, actualizar `grpc_auth_key`, la password del farm y actualizar las urls a 10.0.0.1
-Modificar `compose.yml` poniendo `10.0.0.1` en todos los ports
-
-TODO: Terminar reglas firewall o no, no se si hay que bloquear algo mas
-      Tambien hacer forks y dejar los compose.yml actualizados en nuestros repos
-      
+En el .env hay que cambiar USERID a `0:0`
