@@ -7,7 +7,6 @@ flowchart LR
     n2 <--> n3["Vulnbox"]
     n4 --> n5(["Tulip"]) & n6(["Ataka"])
     n3 <--> n5
-    n6 --> n7["Ataka Clients"]
 
     n1@{ shape: rounded}
     n4@{ shape: rounded}
