@@ -19,8 +19,9 @@ flowchart LR
 - [Configuración de cliente](./client_setup.md)
 - [Desarrollo de exploits](exploit_guide.md)
 
-## Servicios
-- **IP servidor en la VPN**: `10.0.0.1`
-- **Clientes**: `10.0.1.X/32`
-- **Haduhana**: `http://10.0.0.1:3000/`
-- **Ataka API**: `http://10.0.0.1:8000/`
+- **IP servidor en la VPN**: `172.16.10.1`
+- **Clientes**: `172.16.10.X/32`
+- **Haduhana**: `http://172.16.10.1:8000/`
+- **Farm**: `http://172.16.10.1:5137/`
+- **Grafana Dashboard**: `http://172.16.10.1:3000/`
+- **Neo Exploits**: `http://172.16.10.1:5005/`
